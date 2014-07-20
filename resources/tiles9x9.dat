@@ -1,0 +1,49 @@
+%% Patterns:
+%%    bg = blue in green (corners and edges)
+%%    bp = light blue in pink (c&e)
+%%    yb = yellow in blue (c&e)
+%%    bo = light blue in orange (c&e)
+%%    bu = light blue in purple (middle)
+%%    by = light blue in yellow (middle)
+%%    yp = yellow in pink (middle)
+
+%%Tiles =
+[{26, corner, {bg, bg}},
+ {22, edge, {bg, bu, yb}},
+ {11, edge, {yb, bu, bo}},
+ {12, edge, {bo, by, bg}},
+ { 2, center, {bu, by, bu, by}},
+ {35, center, {bu, by, by, by}},
+ {10, edge, {bo, by, bo}},
+ {24, center, {bu, bu, by, by}},
+ { 4, center, {yp, by, by, bu}},
+ 
+ {36, corner, {bg, bg}},
+ {34, corner, {yb, bp}},
+ {14, corner, {bp, bg}},
+ {16, edge, {bo, bu, yb}},
+ {25, edge, {yb, by, bg}},
+ {28, edge, {bg, by, bp}},
+ {13, edge, {bo, bu, bp}},
+ {17, edge, {bp, bu, bp}},
+ {18, edge, {yb, by, bo}},
+ {23, edge, {yb, by, bp}},
+ {15, edge, {bp, by, yb}},
+ {20, edge, {bp, by, bo}},
+ { 7, edge, {bg, by, yb}},
+ {21, edge, {bo, by, yb}},
+ {31, edge, {bp, bu, bo}},
+ { 1, center, {bu, bu, by, by}},
+ { 8, center, {bu, bu, by, by}},
+ {19, center, {bu, by, bu, by}},
+ {32, center, {bu, by, by, by}},
+ { 9, center, {by, bu, bu, bu}},
+ {27, center, {by, bu, bu, bu}},
+ { 3, center, {yp, bu, by, bu}},
+ { 5, center, {yp, bu, by, bu}},
+ {33, center, {yp, by, by, bu}},
+ { 6, center, {yp, by, bu, bu}},
+ {30, center, {yp, by, by, by}},
+ {29, center, {yp, yp, bu, bu}}].
+
+ 

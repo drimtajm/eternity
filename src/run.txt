@@ -1,0 +1,16 @@
+Tiles = [{26, corner, {bg, bg}},
+	 {22, edge, {bg, bu, yb}},
+	 {11, edge, {yb, bu, bo}},
+	 {12, edge, {bo, by, bg}},
+	 { 2, center, {bu, by, bu, by}},
+	 {35, center, {bu, by, by, by}},
+	 {10, edge, {bo, by, bo}},
+	 {24, center, {bu, bu, by, by}},
+	 { 4, center, {yp, by, by, bu}}].
+Bricks = lists:map(fun(T) ->
+			   eternity:mk_brick(T)
+		   end,
+		   lists:zip(lists:seq(1, length(Tiles)), 
+			     Tiles)).
+timer:tc(eternity, go, [Bricks]).
+ 
