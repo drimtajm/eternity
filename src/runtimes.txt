@@ -1,1 +1,5 @@
-c2duo: 20-30 us
+"fake" 3x3 bricks:
+=============================
+c2duo:		~5 ms per brick
+hogwarts:	8-20 ms per brick, runtime seems to vary, first run was best (8-10 ms per brick)
+		     	    	   could this be memory issues, e.g. fragmentation of memory?
