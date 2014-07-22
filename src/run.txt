@@ -14,3 +14,24 @@ Bricks = lists:map(fun(T) ->
 			     Tiles)).
 timer:tc(eternity, go, [Bricks]).
  
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Getting all solutions for "fake" 3x3 bricks in Hint puzzle #1:
+(i.e. take first corner, first 4 edges, first 4 centerpieces,
+      take next corner, next 4 edges, next 4 centerpieces asf)
+Does not provide all 3x3 bricks, hence "fake".
+Still, per-brick time gives a hint about the expected runtime for one "job slice" in a cluster
+
+run
+eternity:go
+
+[{Time1, Result1},{Time2, Result2},{Time3, Result3},{Time4, Result4}] = eternity:go().
+io:format("~p~n~p~n~p~n~p~n", [Time1, Time2, Time3, Time4]).
+
+runtimes on c2duo:
+4606
+5386
+4625
+5071
+i.e. around 5 ms per brick

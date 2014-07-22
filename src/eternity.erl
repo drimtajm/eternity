@@ -43,6 +43,127 @@
 		{24, center, {bu, bu, by, by}},
 		{ 4, center, {yp, by, by, bu}}]).
 
+go() ->
+    Tiles = [{26, corner, {bg, bg}},
+	     {22, edge, {bg, bu, yb}},
+	     {11, edge, {yb, bu, bo}},
+	     {12, edge, {bo, by, bg}},
+	     { 2, center, {bu, by, bu, by}},
+	     {35, center, {bu, by, by, by}},
+	     {10, edge, {bo, by, bo}},
+	     {24, center, {bu, bu, by, by}},
+	     { 4, center, {yp, by, by, bu}},
+
+	     {36, corner, {bg, bg}},
+	     {34, corner, {yb, bp}},
+	     {14, corner, {bp, bg}},
+	     {16, edge, {bo, bu, yb}},
+	     {25, edge, {yb, by, bg}},
+	     {28, edge, {bg, by, bp}},
+	     {13, edge, {bo, bu, bp}},
+	     {17, edge, {bp, bu, bp}},
+	     {18, edge, {yb, by, bo}},
+	     {23, edge, {yb, by, bp}},
+	     {15, edge, {bp, by, yb}},
+	     {20, edge, {bp, by, bo}},
+	     { 7, edge, {bg, by, yb}},
+	     {21, edge, {bo, by, yb}},
+	     {31, edge, {bp, bu, bo}},
+	     { 1, center, {bu, bu, by, by}},
+	     { 8, center, {bu, bu, by, by}},
+	     {19, center, {bu, by, bu, by}},
+	     {32, center, {bu, by, by, by}},
+	     { 9, center, {by, bu, bu, bu}},
+	     {27, center, {by, bu, bu, bu}},
+	     { 3, center, {yp, bu, by, bu}},
+	     { 5, center, {yp, bu, by, bu}},
+	     {33, center, {yp, by, by, bu}},
+	     { 6, center, {yp, by, bu, bu}},
+	     {30, center, {yp, by, by, by}},
+	     {29, center, {yp, yp, bu, bu}}],
+    Bricks = lists:map(fun(Tile) ->
+			       mk_brick(Tile)
+		       end,
+		       lists:zip(lists:seq(1, length(Tiles)), Tiles)),
+    Corners = [Brick || #brick{type=Type}=Brick <- Bricks,
+			Type =:= corner],
+    Edges = [Brick || #brick{type=Type}=Brick <- Bricks,
+		       Type =:= edge],
+    CenterPieces = [Brick || #brick{type=Type}=Brick <- Bricks,
+			      Type =:= center],
+    MaxX = 3,
+    MaxY = 3,
+    get_all_solutions_aux(Corners, Edges, CenterPieces,
+			  {MaxX, MaxY}, []).
+
+get_all_solutions_aux([] = _Corners, _Edges, _CenterPieces, 
+		      _Dimensions, Result) ->
+    Result;
+get_all_solutions_aux(Corners, Edges0, CenterPieces0,
+		      {MaxX, MaxY} = Dimensions, Result0) ->
+    NumberOfEdges = (MaxX-1)+(MaxY-1),
+    NumberOfCenterPieces = (MaxX-1)*(MaxY-1),
+    {Edges, RestEdges} = lists:split(NumberOfEdges, Edges0),
+    {CenterPieces, RestCenterPieces} =
+	lists:split(NumberOfCenterPieces, CenterPieces0),
+    Result = [timer:tc(eternity, get_all_solutions,
+		       [[hd(Corners)], Edges, CenterPieces, corner, {MaxX, MaxY}])
+	      | Result0],
+    get_all_solutions_aux(tl(Corners), RestEdges, RestCenterPieces,
+			  Dimensions, Result).
+
+get_all_solutions([Corner], Edges0, CenterPieces0, corner, Dimensions) ->
+    {Edges, EdgeSeed} = combinations:get_first(Edges0),
+    {CenterPieces, CenterPiecesSeed} = combinations:get_first(CenterPieces0),
+    get_all_corner_solutions(Corner, Edges0, CenterPieces0,
+			     EdgeSeed, CenterPiecesSeed,
+			     Edges, CenterPieces, Dimensions,
+			     []).
+
+get_all_corner_solutions(Corner, Edges0, CenterPieces0,
+			 EdgesSeed0, CenterPiecesSeed0,
+			 Edges, CenterPieces, Dimensions,
+			 Result0) ->
+    BrickList = mk_brick_list(corner, Corner, Edges, CenterPieces, Dimensions),
+
+    {Time, RetVal} = timer:tc(eternity, get_matches_with_fixed_position,
+			      [BrickList, Dimensions]),
+    SolutionCount = case RetVal of
+			dead_end -> 0;
+			_Else    -> length(RetVal)
+		    end,
+    Result = [{Time, SolutionCount} | Result0],
+    
+    case {EdgesSeed0, CenterPiecesSeed0} of
+	{done, done} -> Result;
+	{done, _}    ->
+	    {Edges1, EdgesSeed} = combinations:get_first(Edges0),
+	    {CenterPieces1, CenterPiecesSeed} =
+		combinations:get_next(CenterPieces0, CenterPiecesSeed0),
+	    get_all_corner_solutions(Corner, Edges0, CenterPieces0,
+				     EdgesSeed, CenterPiecesSeed,
+				     Edges1, CenterPieces1, Dimensions,
+				     Result);
+	_Otherwise   ->
+	    {Edges1, EdgesSeed} = combinations:get_next(Edges0, EdgesSeed0),
+	    get_all_corner_solutions(Corner, Edges0, CenterPieces0,
+				     EdgesSeed, CenterPiecesSeed0,
+				     Edges1, CenterPieces, Dimensions,
+				     Result)
+    end.
+	    
+
+mk_brick_list(corner, Corner, Edges, CenterPieces, {MaxX, MaxY}) ->
+    mk_brick_list(corner, Corner, Edges, CenterPieces, {MaxX, MaxY}, MaxY, []).
+mk_brick_list(corner, Corner, Edges, []=_CenterPieces, _Dimensions, 1, Result) ->
+    Row = [Corner | Edges],
+    lists:append(Row, Result);
+mk_brick_list(corner, Corner, Edges, CenterPieces, {MaxX, MaxY}, Y, Result0) ->
+    {CenterPiecesInRow, RestCenterPieces} = lists:split((MaxX-1), CenterPieces),
+    Row = [hd(Edges) | CenterPiecesInRow],
+    Result = lists:append(Row, Result0),
+    mk_brick_list(corner, Corner, tl(Edges), RestCenterPieces, {MaxX, MaxY}, Y-1, Result).
+
 go(Bricks) ->
     get_matches_with_fixed_position(Bricks, {3, 3}).
 
