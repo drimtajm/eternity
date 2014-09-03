@@ -120,6 +120,72 @@ get_all_solutions([Corner], Edges0, CenterPieces0, corner, Dimensions) ->
 			     Edges, CenterPieces, Dimensions,
 			     []).
 
+go_large() ->
+    Tiles = [{3, corner, {bp, yb}},
+	     {24, edge, {bo, puo, yb}},
+	     {55, edge, {obr, pcb, obr}},
+	     {54, edge, {bg, pcb, obr}},
+	     {51, edge, {yb, bpu, obr}},
+	     {11, edge, {yb, gy, bo}},
+	     {30, edge, {obr, psb, bp}},
+	     {126, center, {bpu, gy, yp, ob}},
+	     {239, center, {ybr, pb, gy, puo}},
+	     {134, center, {bpu, pcb, og, pb}},
+	     {243, center, {gy, gy, psb, by}},
+	     {248, center, {psb, gy, pcb, by}},
+	     {252, center, {by, pcb, by, ob}},
+	     {250, center, {puo, gy, ysp, bb}},
+	     {117, center, {bb, pb, og, bpu}},
+	     {98, center, {pb, yrp, ob, puo}}],
+    Bricks = lists:map(fun(Tile) ->
+			       mk_brick(Tile)
+		       end,
+		       lists:zip(lists:seq(1, length(Tiles)), Tiles)),
+    Corners = [Brick || #brick{type=Type}=Brick <- Bricks,
+			Type =:= corner],
+    Edges0 = [Brick || #brick{type=Type}=Brick <- Bricks,
+		       Type =:= edge],
+    CenterPieces0 = [Brick || #brick{type=Type}=Brick <- Bricks,
+			      Type =:= center],
+    MaxX = 4,
+    MaxY = 4,
+    io:format("before permutations~n"),
+    Edges = permutations(Edges0),
+    CenterPieces = permutations(CenterPieces0),
+    io:format("after permutations, length(Edges): ~p,"
+	      " length(CenterPieces):~p, heap: ~p~n",
+	      [length(Edges), length(CenterPieces),
+	       process_info(self(), memory)]),
+    timer:tc(eternity, get_all_solutions1,
+	     [hd(Corners), Edges, Edges,
+	      CenterPieces, corner, {MaxX, MaxY}, []]).
+
+permutations([])   -> [[]];
+permutations(List) ->
+    [[Head|Tail] || Head <- List,
+		    Tail <- permutations(List--[Head])].
+
+get_all_solutions1(_Corner, _Edges0, [], [],
+		   corner, _Dimensions, Result) ->
+    Result;
+get_all_solutions1(Corner, Edges0, [], CenterPieces,
+		   corner, Dimensions, Result) ->
+    erlang:garbage_collect(),
+    if ((length(CenterPieces) rem 1000) == 0) ->
+       io:format("heap size: ~p~n", [process_info(self(), memory)]);
+       true -> ok
+    end,
+    get_all_solutions1(Corner, Edges0, Edges0, tl(CenterPieces),
+		       corner, Dimensions, Result);
+get_all_solutions1(Corner, Edges0, [Edges | RestEdges], CenterPieces,
+		   corner, Dimensions, Result0) ->
+    BrickList = mk_brick_list(corner, Corner, Edges, hd(CenterPieces),
+			      Dimensions),
+    Result = [timer:tc(eternity, get_matches_with_fixed_position,
+		       [BrickList, Dimensions]) | Result0],
+    get_all_solutions1(Corner, Edges0, RestEdges, CenterPieces,
+		       corner, Dimensions, Result).
+
 get_all_corner_solutions(Corner, Edges0, CenterPieces0,
 			 EdgesSeed0, CenterPiecesSeed0,
 			 Edges, CenterPieces, Dimensions,
