@@ -1,0 +1,43 @@
+%% Patterns:
+%%    bg = blue in green (corners and edges)
+%%    bp = light blue in pink (c&e)
+%%    yb = yellow in blue (c&e)
+%%    bo = light blue in orange (c&e)
+%%    obr = orange in brown (c&e)
+
+%%    og = pink in green
+
+%%    bpu = light blue in purple (middle)
+%%    bsy = blue (squared) in yellow (middle)
+%%    by = light blue in yellow (middle)
+%%    yrp = yellow (rounded) in pink (middle)
+%%    ysp = yellow (squared) in pink (middle)
+%%    psb = pink (squared) in light blue (middle)
+%%    pcb = pink (cross) in light blue (middle)
+%%    gy = green in yellow (middle)
+%%    puo = purple in orange (middle)
+%%    og = orange in green (middle)
+%%    ybr = yellow in brown (middle)
+%%    ob = orange in blue (middle)
+%%    pb = pink in blue (middle)
+%%    bb = light blue in blue (middle)
+%%    gbr = green in brown (middle)
+%%    ypu = yellow in purple (middle)
+
+%%Tiles =
+[{3, corner, {bp, yb}},
+ {24, edge, {bo, puo, yb}},
+ {55, edge, {obr, pcb, obr}},
+ {54, edge, {bg, pcb, obr}},
+ {51, edge, {yb, bpu, obr}},
+ {11, edge, {yb, gy, bo}},
+ {30, edge, {obr, psb, bp}},
+ {126, middle, {bpu, gy, yp, ob}},
+ {239, middle, {ybr, pb, gy, puo}},
+ {134, middle, {bpu, pcb, og, pb}},
+ {243, middle, {gy, gy, psb, by}},
+ {248, middle, {psb, gy, pcb, by}},
+ {252, middle, {by, pcb, by, ob}},
+ {250, middle, {puo, gy, ysp, bb}},
+ {117, middle, {bb, pb, og, bpu}},
+ {98, middle, {pb, yrp, ob, puo}}].

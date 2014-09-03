@@ -1,0 +1,62 @@
+%% Patterns:
+%%    bg = blue in green (corners and edges)
+%%    bp = light blue in pink (c&e)
+%%    yb = yellow in blue (c&e)
+%%    bo = light blue in orange (c&e)
+%%    bu = light blue in purple (middle)
+%%    by = light blue in yellow (middle)
+%%    yp = yellow in pink (middle)
+%%    uy = purple in yellow (middle) 
+
+%%Tiles =
+[{ 1, corner, {yb, yb}, [28,32]},
+ { 2, corner, {bp, bp}, [44]},
+ { 3, corner, {bg, yb}, [7]},
+
+ { 4, edge, {bo, uy, bp}, [27,67]},
+ { 5, edge, {yb, uy, bp}, [16]},
+ { 6, edge, {bp, bu, bp}, [57]},
+ { 7, edge, {bg, by, bp}, [37, 72]},
+ { 8, edge, {yb, yp, bp}, [10]},
+ { 9, edge, {bp, by, bo}, [56]},
+ {10, edge, {bp, uy, bo}, [18,71]},
+ {11, edge, {bo, yp, bo}, [35]},
+ {12, edge, {bo, by, bo}, [30]},
+ {13, edge, {bg, uy, bo}, [4]},
+ {14, edge, {bp, by, yb}, [47]},
+ {15, edge, {bo, uy, yb}, [54]},
+ {16, edge, {bp, yp, yb}, [61]},
+ {17, edge, {bg, by, yb}, [59]},
+ {18, edge, {bg, uy, yb}, [20, 69]},
+ {19, edge, {bg, uy, bo}, [1]},
+ {20, edge, {yb, by, bo}, [17]},
+ {21, edge, {bp, by, bg}, [45]},
+ {22, edge, {yb, uy, bg}, [23,53]},
+ {23, edge, {bg, uy, bg}, [22]},
+ {24, edge, {bo, uy, bg}, [21,49]},
+ {25, edge, {bo, by, bg}, [36]},
+
+ {26, center, {uy, uy, by, yp}, [31,42]},
+ {27, center, {yp, by, by, by}, [9, 34, 63]},
+ {28, center, {uy, uy, uy, uy}, [8]},
+ {29, center, {uy, by, by, by}, [2,33,50,52,65]},
+ {30, center, {uy, uy, by, by}, [19,24,46,51,60,64,68]},
+ {31, center, {bu, uy, by, uy}, [25]},
+ {32, center, {bu, uy, uy, uy}, [62]},
+ {33, center, {by, uy, uy, uy}, [55]},
+ {34, center, {by, uy, by, uy}, [38,43]},
+ {35, center, {bu, by, uy, uy}, [15,40]},
+ {36, center, {bu, by, uy, by}, [5,26]},
+ {37, center, {bu, uy, uy, by}, [58]},
+ {38, center, {by, uy, bu, bu}, [6,41]},
+ {39, center, {bu, by, yp, yp}, [39]},
+ {40, center, {yp, by, uy, uy}, [13]},
+ {41, center, {uy, yp, by, by}, [66]},
+ {42, center, {yp, bu, by, by}, [12]},
+ {43, center, {uy, bu, yo, by}, [29,48]},
+ {44, center, {uy, yp, bu, bu}, [3]},
+ {45, center, {by, yp, bu, bu}, [70]},
+ {46, center, {yp, uy, uy, uy}, [14]},
+ {47, center, {uy, by, yp, yp}, [11]}].
+
+ 
