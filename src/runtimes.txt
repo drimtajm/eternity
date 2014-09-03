@@ -1,6 +1,28 @@
-"fake" 3x3 bricks:
+"fake" 3x3 (corner) bricks:
 =============================
 c2duo:		~5 ms per brick
 hogwarts:	8-20 ms per brick, runtime seems to vary, first run was best (8-10 ms per brick)
 		     	    	   could this be memory issues, e.g. fragmentation of memory?
 pepparkakehus:  38-43 ms per brick, runtime seems stable
+datorbebis:     40-52 ms per brick first run, 39-44 ms all subsequent runs - OTP R16B01
+                                   seems to be an Erlang VM issue as this is not seen with OTP R17
+                                   on comparable HW
+
+conclusion: hogwarts and c2duo are naturally faster, but around 40 ms per brick on a RPi is pretty
+            fast as well. Even if this is a small sample, it gave pretty good/stable numbers/an
+	    indication of magnitude.
+
+	    With these runtimes, the big puzzle should be solved in no time once it's clusterified.
+	    It seems, the chunks are "lagom" for distribution and the cluster server should "tick
+	    through" the chunks pretty fast. The only disadvantage with that is that the server
+	    might get too busy, so it cannot scale when the amout of workers grows. Also, the
+	    percentage of network communication time in the total runtime is expected to be non-
+	    negligible. However, a slower solver would only mean a larger total runtime
+
+	    The instability in the runtime on the Radxa Rock is upsetting/disconcerning. Could be
+	    worth looking into RAM usage and flash access times, although there shouldn't be much
+	    file system interaction.
+
+            On all machines, the first brick was always the fastest and the last the slowest, which
+	    suggests that bricks show strong individual runtime properties, even if the search
+	    itself is exhaustive (i.e. it will always check all dead ends).
