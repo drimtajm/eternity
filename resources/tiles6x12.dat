@@ -53,7 +53,7 @@
  {40, center, {yp, by, uy, uy}, [13]},
  {41, center, {uy, yp, by, by}, [66]},
  {42, center, {yp, bu, by, by}, [12]},
- {43, center, {uy, bu, yo, by}, [29,48]},
+ {43, center, {uy, bu, yp, by}, [29,48]},
  {44, center, {uy, yp, bu, bu}, [3]},
  {45, center, {by, yp, bu, bu}, [70]},
  {46, center, {yp, uy, uy, uy}, [14]},
