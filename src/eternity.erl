@@ -96,7 +96,7 @@ go() ->
     get_all_solutions_aux(Corners, Edges, CenterPieces,
 			  {MaxX, MaxY}, []).
 
-get_all_solutions_aux([] = _Corners, _Edges, _CenterPieces, 
+get_all_solutions_aux([] = _Corners, _Edges, _CenterPieces,
 		      _Dimensions, Result) ->
     Result;
 get_all_solutions_aux(Corners, Edges0, CenterPieces0,
@@ -133,7 +133,7 @@ get_all_corner_solutions(Corner, Edges0, CenterPieces0,
 			_Else    -> length(RetVal)
 		    end,
     Result = [{Time, SolutionCount} | Result0],
-    
+
     case {EdgesSeed0, CenterPiecesSeed0} of
 	{done, done} -> Result;
 	{done, _}    ->
@@ -151,7 +151,7 @@ get_all_corner_solutions(Corner, Edges0, CenterPieces0,
 				     Edges1, CenterPieces, Dimensions,
 				     Result)
     end.
-	    
+
 
 mk_brick_list(corner, Corner, Edges, CenterPieces, {MaxX, MaxY}) ->
     mk_brick_list(corner, Corner, Edges, CenterPieces, {MaxX, MaxY}, MaxY, []).
