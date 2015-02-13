@@ -18,13 +18,26 @@
 %%%===================================================================
 
 make_tile({Id,Type,Pattern,Sources}) ->
+    Count = length(Sources),
     #tile{id = Id, type = Type, pattern = make_pattern(Pattern),
-          size = {1,1}, count = length(Sources),
-          sources = Sources, primary = []}.
+          size = {1,1}, count = Count,
+          sources = Sources, primary = [[{Id, Count}]]}.
 
 make_pattern(Pattern) ->
     sort_pattern(make_pattern_aux(Pattern)).
 
+read_table(Filename) ->
+    {ok, Table} = ets:file2tab(Filename),
+    Tiles = [T || {_Key, #tile{} = T} <- ets:tab2list(Table)],
+    ets:delete(Table),
+    Tiles.
+
+match(#tile{primary=PL}=TileL, #tile{primary=PR}=TileR, ResultingSize) ->
+    case merge_primary_sources(PL, PR) of
+        []             -> false;
+        PrimarySources ->
+            matches(TileL, TileR, ResultingSize, PrimarySources)
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -36,6 +49,21 @@ make_pattern(Pattern) ->
 %%% Internal functions
 %%%===================================================================
 
+merge_primary_sources(Sources1, Sources2) ->
+    MergedSources = [S1++S2 || S1 <- Sources1,
+                               S2 <- Sources2],
+    [Sources || Sources <- MergedSources,
+                match_is_possible(Sources, hd(Sources), 0) == true].
+
+match_is_possible([], _Id, _Count) ->
+    true;
+match_is_possible([{Id, C} | _Rest], Id, Count) when C < Count+1 ->
+    false;
+match_is_possible([{Id, _C} | Rest], Id, Count) ->
+    match_is_possible(Rest, Id, Count+1);
+match_is_possible([{Id, _C} | Rest], _, _) ->
+    match_is_possible(Rest, Id, 1).
+
 %%--------------------------------------------------------------------
 %% case 0: matching a corner_slice with another (end condition)
 %%--------------------------------------------------------------------
@@ -44,7 +72,8 @@ matches(#tile{id=Id1, type=corner_slice, size={X, Y},
                                down = undefined, right = Pattern1}},
         #tile{id=Id2, type=corner_slice, size={X, Y},
               pattern=#pattern{left = undefined, up = undefined,
-                               down = undefined, right = Pattern2}}) ->
+                               down = undefined, right = Pattern2}},
+        _ResultingSize, _PrimarySources) ->
     case patterns_match(Pattern1, Pattern2) of
         false -> false;
         true  -> Solution = #tile{type=solution, size={2*X, Y},
@@ -172,6 +201,10 @@ matches(#tile{id=Id1, type=corner_slice, size={X, Y},
 %%                               count=1, sources=[{Id1, Id2}]}]}
 %%    end;
 
+matches(#tile{count=Count} = Tile, Tile, _ResultingSize, _PrimarySources)
+  when Count < 2 ->
+    false;
+
 %%--------------------------------------------------------------------
 %% case 3a: matching a corner with an edge, making a bigger corner
 %%--------------------------------------------------------------------
@@ -180,7 +213,8 @@ matches(#tile{id=IdL, type=corner, size={XL, YL},
                                right = RightL, down = DownL}},
         #tile{id=IdR, type=edge, size={XR, YR},
               pattern=#pattern{left = LeftR, up = undefined,
-                               right = RightR, down = DownR}})
+                               right = RightR, down = DownR}},
+        _ResultingSize, PrimarySources)
   when YR == YL orelse YR == XL ->
     Match0 = case patterns_match(RightL, LeftR) of
                  false -> false;
@@ -188,7 +222,8 @@ matches(#tile{id=IdL, type=corner, size={XL, YL},
                      #tile{type=corner, size={XL + XR, YL},
                            pattern=#pattern{right = RightR,
                                             down = DownR++DownL},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     Match1 = case patterns_match(DownL, RightR) of
                  false -> false;
@@ -196,7 +231,8 @@ matches(#tile{id=IdL, type=corner, size={XL, YL},
                      #tile{type=corner, size={XL, YL + XR},
                            pattern=#pattern{right = RightL++DownR,
                                             down=LeftR},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     case {Match0, Match1} of
         {false, false} -> false;
@@ -204,7 +240,8 @@ matches(#tile{id=IdL, type=corner, size={XL, YL},
         {_, false}     -> {true, [Match0]};
         _Else          -> {true, [Match0, Match1]}
     end;
-matches(#tile{type=corner} = _Corner, #tile{type=edge} = _Edge) ->
+matches(#tile{type=corner} = _Corner, #tile{type=edge} = _Edge,
+        _ResultingSize, _PrimarySources) ->
     false;
 
 %%--------------------------------------------------------------------
@@ -215,14 +252,16 @@ matches(#tile{id=IdL, type=edge, size={XL, Y},
                                right = RightL, down = DownL}},
         #tile{id=IdR, type=edge, size={XR, Y},
               pattern=#pattern{left = LeftR, up = undefined,
-                               right = RightR, down = DownR}}) ->
+                               right = RightR, down = DownR}},
+        square, PrimarySources) ->
     Match0 = case patterns_match(RightL, LeftR) of
                  false -> false;
                  true  ->
                      #tile{type=edge, size={XL+XR, Y},
                            pattern=#pattern{left = LeftL, right = RightR,
                                             down = DownR++DownL},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     Match1 = case patterns_match(RightR, LeftL) of
                  false -> false;
@@ -230,7 +269,8 @@ matches(#tile{id=IdL, type=edge, size={XL, Y},
                      #tile{type=edge, size={XL+XR, Y},
                            pattern=#pattern{left = LeftR, right = RightL,
                                             down = DownL++DownR},
-                           count=1, sources=[{IdR, IdL}]}
+                           count=1, sources=[{IdR, IdL}],
+                           primary=PrimarySources}
              end,
     case {Match0, Match1} of
         {false, false} -> false;
@@ -238,7 +278,8 @@ matches(#tile{id=IdL, type=edge, size={XL, Y},
         {_, false}     -> {true, [Match0]};
         _Else          -> {true, [Match0, Match1]}
     end;
-matches(#tile{type=edge} = _EdgeL, #tile{type=edge}  = _EdgeR) ->
+matches(#tile{type=edge} = _EdgeL, #tile{type=edge}  = _EdgeR,
+        _ResultingSize, _PrimarySources) ->
     false;
 
 %%--------------------------------------------------------------------
@@ -249,14 +290,16 @@ matches(#tile{id=IdL, type=edge, size={XL, YL},
                                right = RightL, down = DownL}},
         #tile{id=IdR, type=center, size={XR, YR},
               pattern=#pattern{left = LeftR, up = UpR,
-                               right = RightR, down = DownR}}) ->
+                               right = RightR, down = DownR}},
+        non_square, PrimarySources) ->
     Match0 = case patterns_match(DownL, UpR) of
                  false -> false;
                  true  ->
                      #tile{type=edge, size={XL, YL+YR},
                            pattern=#pattern{left = LeftR++LeftL, down = DownR,
                                             right = RightL++RightR},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     Match1 = case patterns_match(DownL, DownR) of
                  false -> false;
@@ -264,7 +307,8 @@ matches(#tile{id=IdL, type=edge, size={XL, YL},
                      #tile{type=edge, size={XL, YL+YR},
                            pattern=#pattern{left = RightR++LeftL, down = UpR,
                                             right = RightL++LeftR},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     Match2 = case patterns_match(DownL, RightR) of
                  false -> false;
@@ -272,7 +316,8 @@ matches(#tile{id=IdL, type=edge, size={XL, YL},
                      #tile{type=edge, size={XL, YL+XR},
                            pattern=#pattern{left = UpR++LeftL, down = LeftR,
                                             right = RightL++DownR},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     Match3 = case patterns_match(DownL, LeftR) of
                  false -> false;
@@ -280,13 +325,16 @@ matches(#tile{id=IdL, type=edge, size={XL, YL},
                      #tile{type=edge, size={XL, YL+XR},
                            pattern=#pattern{left = DownR++LeftL, down = RightR,
                                             right = RightL++UpR},
-                           count=1, sources=[{IdL, IdR}]}
+                           count=1, sources=[{IdL, IdR}],
+                           primary=PrimarySources}
              end,
     Matches = [M || #tile{}=M <- [Match0, Match1, Match2, Match3]],
     case Matches of
         [] -> false;
         _  -> {true, Matches}
     end;
+%%matches(#tile{type=edge} = _Edge, #tile{type=center} = _Center, square) ->
+%%    false;
 
 %%--------------------------------------------------------------------
 %% case 4: matching two centerpieces, making a bigger centerpiece
@@ -294,24 +342,29 @@ matches(#tile{id=IdL, type=edge, size={XL, YL},
 %% trivial case: the two centerpieces are the same
 matches(#tile{id=Id, type=center, size = {X, Y},
               pattern=#pattern{left=Left, up=Up,
-                               right=Right, down=Down}} = Tile, Tile) ->
+                               right=Right, down=Down}} = Tile, Tile,
+        ResultingSize, PrimarySources) ->
     Matches0 = [#tile{type=center, size = {Y, 2*X},
                       pattern=#pattern{up = Left, right = Up++Down,
                                        down = Left, left = Up++Down},
-                      count = 1, sources=[{Id, Id}]},
+                      count = 1, sources=[{Id, Id}],
+                      primary=PrimarySources},
                 #tile{type=center, size = {Y, 2*X},
                       pattern=#pattern{up = Right, right = Down++Up,
                                        down = Right, left = Down++Up},
-                      count = 1, sources=[{Id, Id}]}],
-    Matches1 = if (Y == X) ->
+                      count = 1, sources=[{Id, Id}],
+                      primary=PrimarySources}],
+    Matches1 = if (ResultingSize == non_square) ->
                        [#tile{type=center, size = {Y, 2*X},
                               pattern=#pattern{up = Down, right = Left++Right,
                                                down = Down, left = Left++Right},
-                              count = 1, sources=[{Id, Id}]},
+                              count = 1, sources=[{Id, Id}],
+                              primary=PrimarySources},
                         #tile{type=center, size = {Y, 2*X},
                               pattern=#pattern{up = Up, right = Right++Left,
                                                down = Up, left = Right++Left},
-                              count = 1, sources=[{Id, Id}]}
+                              count = 1, sources=[{Id, Id}],
+                              primary=PrimarySources}
                         | Matches0];
                   true ->
                        Matches0
@@ -321,43 +374,53 @@ matches(#tile{id=Id, type=center, size = {X, Y},
 %%--------------------------------------------------------------------
 %% case B: different tiles
 %%--------------------------------------------------------------------
-matches(#tile{type=center} = TileL, #tile{type=center} = TileR) ->
-    MatchesLeft  = match_left(TileL, TileR),
-    MatchesUp    = match_up(TileL, TileR),
-    MatchesRight = match_right(TileL, TileR),
-    MatchesDown  = match_down(TileL, TileR),
+matches(#tile{type=center} = TileL, #tile{type=center} = TileR,
+        square, PrimarySources) ->
+    MatchesLeft  = match_left(TileL, TileR, PrimarySources),
+    MatchesRight = match_right(TileL, TileR, PrimarySources),
+    Matches = MatchesLeft ++ MatchesRight,
+    case Matches of
+        [] -> false;
+        _  -> {true, Matches}
+    end;
+matches(#tile{type=center} = TileL, #tile{type=center} = TileR,
+        non_square, PrimarySources) ->
+    MatchesLeft  = match_left(TileL, TileR, PrimarySources),
+    MatchesUp    = match_up(TileL, TileR, PrimarySources),
+    MatchesRight = match_right(TileL, TileR, PrimarySources),
+    MatchesDown  = match_down(TileL, TileR, PrimarySources),
     Matches = MatchesLeft ++ MatchesUp ++ MatchesRight ++ MatchesDown,
     case Matches of
         [] -> false;
         _  -> {true, Matches}
     end.
 
-match_left(TileL, TileR) ->
-    M0 = match_left_right(TileL, TileR),
-    M1 = match_left_left(TileL, TileR),
-    M2 = match_left_up(TileL, TileR),
-    M3 = match_left_down(TileL, TileR),
+match_left(TileL, TileR, PrimarySources) ->
+    M0 = match_left_right(TileL, TileR, PrimarySources),
+    M1 = match_left_left(TileL, TileR, PrimarySources),
+    M2 = match_left_up(TileL, TileR, PrimarySources),
+    M3 = match_left_down(TileL, TileR, PrimarySources),
     [M || M <- [M0, M1, M2, M3], M /= false].
 
-match_right(TileL, TileR) ->
-    M0 = match_right_right(TileL, TileR),
-    M1 = match_right_left(TileL, TileR),
-    M2 = match_right_up(TileL, TileR),
-    M3 = match_right_down(TileL, TileR),
+match_right(TileL, TileR, PrimarySources) ->
+    M0 = match_right_right(TileL, TileR, PrimarySources),
+    M1 = match_right_left(TileL, TileR, PrimarySources),
+    M2 = match_right_up(TileL, TileR, PrimarySources),
+    M3 = match_right_down(TileL, TileR, PrimarySources),
     [M || M <- [M0, M1, M2, M3], M /= false].
 
-match_up(TileL, TileR) ->
-    M0 = match_up_right(TileL, TileR),
-    M1 = match_up_left(TileL, TileR),
-    M2 = match_up_up(TileL, TileR),
-    M3 = match_up_down(TileL, TileR),
+match_up(TileL, TileR, PrimarySources) ->
+    M0 = match_up_right(TileL, TileR, PrimarySources),
+    M1 = match_up_left(TileL, TileR, PrimarySources),
+    M2 = match_up_up(TileL, TileR, PrimarySources),
+    M3 = match_up_down(TileL, TileR, PrimarySources),
     [M || M <- [M0, M1, M2, M3], M /= false].
 
-match_down(TileL, TileR) ->
-    M0 = match_down_right(TileL, TileR),
-    M1 = match_down_left(TileL, TileR),
-    M2 = match_down_up(TileL, TileR),
-    M3 = match_down_down(TileL, TileR),
+match_down(TileL, TileR, PrimarySources) ->
+    M0 = match_down_right(TileL, TileR, PrimarySources),
+    M1 = match_down_left(TileL, TileR, PrimarySources),
+    M2 = match_down_up(TileL, TileR, PrimarySources),
+    M3 = match_down_down(TileL, TileR, PrimarySources),
     [M || M <- [M0, M1, M2, M3], M /= false].
 
 %% match left pattern on left tile
@@ -366,30 +429,35 @@ match_left_left(#tile{id=IdL, type=center, size={XL, Y},
                                        right=RightL, down=DownL}},
                 #tile{id=IdR, type=center, size={XR, Y},
                       pattern=#pattern{left=LeftR, up=UpR,
-                                       right=RightR, down=DownR}}) ->
+                                       right=RightR, down=DownR}},
+                PrimarySources) ->
     case patterns_match(LeftL, LeftR) of
         false -> false;
         true  -> #tile{type=center, size={Y, XL+XR},
                        pattern=#pattern{up = RightL, right = DownL++UpR,
                                         down = RightR, left = DownR++UpL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_left_left(_, _) -> false.
+
+match_left_left(_, _, _) -> false.
 
 match_left_right(#tile{id=IdL, type=center, size={XL, Y},
                        pattern=#pattern{left = LeftL, up = UpL,
                                         right = RightL, down = DownL}},
                  #tile{id=IdR, type=center, size={XR, Y},
                        pattern=#pattern{left = LeftR, up = UpR,
-                                        right = RightR, down = DownR}}) ->
+                                        right = RightR, down = DownR}},
+                 PrimarySources) ->
     case patterns_match(LeftL, RightR) of
         false -> false;
         true  -> #tile{type=center, size={Y, XL+XR},
                        pattern=#pattern{up = RightL, right = DownL++DownR,
                                         down = LeftR, left = UpR++UpL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_left_right(_, _) -> false.
+match_left_right(_, _, _) -> false.
 
 
 match_left_up(#tile{id=IdL, type=center, size={X, YL},
@@ -397,15 +465,17 @@ match_left_up(#tile{id=IdL, type=center, size={X, YL},
                                      right = RightL, down = DownL}},
               #tile{id=IdR, type=center, size = {X, YR},
                     pattern=#pattern{left = LeftR, up = UpR,
-                                     right = RightR, down = DownR}}) ->
+                                     right = RightR, down = DownR}},
+              PrimarySources) ->
     case patterns_match(LeftL, UpR) of
         false -> false;
         true  -> #tile{type=center, size={YL, X+YR},
                        pattern=#pattern{up = RightL, right = DownL++RightR,
                                         down = DownR, left = LeftR++UpL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_left_up(_, _) -> false.
+match_left_up(_, _, _) -> false.
 
 
 match_left_down(#tile{id=IdL, type=center, size = {X, YL},
@@ -413,15 +483,17 @@ match_left_down(#tile{id=IdL, type=center, size = {X, YL},
                                        right = RightL, down = DownL}},
                 #tile{id=IdR, type=center, size = {X, YR},
                       pattern=#pattern{left = LeftR, up = UpR,
-                                       right = RightR, down = DownR}}) ->
+                                       right = RightR, down = DownR}},
+                PrimarySources) ->
     case patterns_match(LeftL, DownR) of
         false -> false;
         true  -> #tile{type=center, size={YL, X+YR},
                        pattern=#pattern{up = RightL, right = DownL++LeftR,
                                         down = UpR, left = RightR++UpL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_left_down(_, _) -> false.
+match_left_down(_, _, _) -> false.
 
 
 %% match right pattern on left tile
@@ -430,15 +502,17 @@ match_right_left(#tile{id=IdL, type=center, size={XL, Y},
                                         right = RightL, down = DownL}},
                  #tile{id=IdR, type=center, size={XR, Y},
                        pattern=#pattern{left = LeftR, up = UpR,
-                                        right = RightR, down = DownR}}) ->
+                                        right = RightR, down = DownR}},
+                 PrimarySources) ->
     case patterns_match(RightL, LeftR) of
         false -> false;
         true  -> #tile{type=center, size={Y, XL+XR},
                        pattern=#pattern{up = LeftL, right = UpL++UpR,
                                         down = RightR, left = DownR++DownL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_right_left(_, _) -> false.
+match_right_left(_, _, _) -> false.
 
 
 match_right_right(#tile{id=IdL, type=center, size={XL, Y},
@@ -446,15 +520,17 @@ match_right_right(#tile{id=IdL, type=center, size={XL, Y},
                                          right = RightL, down = DownL}},
                   #tile{id=IdR, type=center, size={XR, Y},
                         pattern=#pattern{left = LeftR, up = UpR,
-                                         right = RightR, down = DownR}}) ->
+                                         right = RightR, down = DownR}},
+                  PrimarySources) ->
     case patterns_match(RightL, RightR) of
         false -> false;
         true  -> #tile{type=center, size={Y, XL+XR},
                        pattern=#pattern{up = LeftL, right = UpL++DownR,
                                         down = LeftR, left = UpR++DownL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_right_right(_, _) -> false.
+match_right_right(_, _, _) -> false.
 
 
 match_right_up(#tile{id=IdL, type=center, size={XL, YL},
@@ -462,15 +538,17 @@ match_right_up(#tile{id=IdL, type=center, size={XL, YL},
                                       right = RightL, down = DownL}},
                #tile{id=IdR, type=center, size={YL, YR},
                      pattern = #pattern{left = LeftR, up = UpR,
-                                        right = RightR, down = DownR}}) ->
+                                        right = RightR, down = DownR}},
+               PrimarySources) ->
     case patterns_match(RightL, UpR) of
         false -> false;
         true  -> #tile{type=center, size={YL, XL+YR},
                        pattern=#pattern{up = LeftL, right = UpL++RightR,
                                         down = DownR, left = LeftR++DownL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_right_up(_, _) -> false.
+match_right_up(_, _, _) -> false.
 
 
 match_right_down(#tile{id=IdL, type=center, size={XL, YL},
@@ -478,15 +556,17 @@ match_right_down(#tile{id=IdL, type=center, size={XL, YL},
                                         right = RightL, down = DownL}},
                  #tile{id=IdR, type=center, size={YL, YR},
                        pattern = #pattern{left = LeftR, up = UpR,
-                                          right = RightR, down = DownR}}) ->
+                                          right = RightR, down = DownR}},
+                 PrimarySources) ->
     case patterns_match(RightL, DownR) of
         false -> false;
         true  -> #tile{type=center, size={YL, XL+YR},
                        pattern=#pattern{up = LeftL, right = UpL++LeftR,
                                         down = UpR, left = RightR++DownL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_right_down(_, _) -> false.
+match_right_down(_, _, _) -> false.
 
 
 %% match top pattern on left tile
@@ -495,15 +575,17 @@ match_up_left(#tile{id=IdL, type=center, size={XL, YL},
                                      right = RightL, down = DownL}},
               #tile{id=IdR, type=center, size={XR, XL},
                     pattern = #pattern{left = LeftR, up = UpR,
-                                       right = RightR, down = DownR}}) ->
+                                       right = RightR, down = DownR}},
+              PrimarySources) ->
     case patterns_match(UpL, LeftR) of
         false -> false;
         true  -> #tile{type=center, size={XL, YL+XR},
                        pattern=#pattern{up = DownL, right = LeftL++UpR,
                                         down = RightR, left = DownR++RightL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_up_left(_, _) -> false.
+match_up_left(_, _, _) -> false.
 
 
 match_up_right(#tile{id=IdL, type=center, size={XL, YL},
@@ -511,15 +593,17 @@ match_up_right(#tile{id=IdL, type=center, size={XL, YL},
                                       right = RightL, down = DownL}},
                #tile{id=IdR, type=center, size={XR, XL},
                      pattern = #pattern{left = LeftR, up = UpR,
-                                        right = RightR, down = DownR}}) ->
+                                        right = RightR, down = DownR}},
+               PrimarySources) ->
     case patterns_match(UpL, RightR) of
         false -> false;
         true  -> #tile{type=center, size={XL, YL+XR},
                        pattern=#pattern{up = DownL, right = LeftL++DownR,
                                         down = LeftR, left = UpR++RightL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_up_right(_, _) -> false.
+match_up_right(_, _, _) -> false.
 
 
 match_up_up(#tile{id=IdL, type=center, size={X, YL},
@@ -527,15 +611,17 @@ match_up_up(#tile{id=IdL, type=center, size={X, YL},
                                    right = RightL, down = DownL}},
             #tile{id=IdR, type=center, size={X, YR},
                   pattern = #pattern{left = LeftR, up = UpR,
-                                     right = RightR, down = DownR}}) ->
+                                     right = RightR, down = DownR}},
+            PrimarySources) ->
     case patterns_match(UpL, UpR) of
         false -> false;
         true  -> #tile{type=center, size={X, YL+YR},
                        pattern=#pattern{up = DownL, right = LeftL++RightR,
                                         down = DownR, left = LeftR++RightL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_up_up(_, _) -> false.
+match_up_up(_, _, _) -> false.
 
 
 match_up_down(#tile{id=IdL, type=center, size={X, YL},
@@ -543,15 +629,17 @@ match_up_down(#tile{id=IdL, type=center, size={X, YL},
                                      right = RightL, down = DownL}},
               #tile{id=IdR, type=center, size={X, YR},
                     pattern = #pattern{left = LeftR, up = UpR,
-                                       right = RightR, down = DownR}}) ->
+                                       right = RightR, down = DownR}},
+              PrimarySources) ->
     case patterns_match(UpL, DownR) of
         false -> false;
         true  -> #tile{type=center, size={X, YL+YR},
                        pattern=#pattern{up = DownL, right = LeftL++LeftR,
                                         down = UpR, left = RightR++RightL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_up_down(_, _) -> false.
+match_up_down(_, _, _) -> false.
 
 
 %% match bottom pattern on left tile
@@ -560,15 +648,17 @@ match_down_left(#tile{id=IdL, type=center, size={XL, YL},
                                        right = RightL, down = DownL}},
                 #tile{id=IdR, type=center, size={XR, XL},
                       pattern = #pattern{left = LeftR, up = UpR,
-                                         right = RightR, down = DownR}}) ->
+                                         right = RightR, down = DownR}},
+                PrimarySources) ->
     case patterns_match(DownL, LeftR) of
         false -> false;
         true  -> #tile{type=center, size={XL, YL+XR},
                        pattern=#pattern{up = UpL, right = RightL++UpR,
                                         down = RightR, left = DownR++LeftL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_down_left(_, _) -> false.
+match_down_left(_, _, _) -> false.
 
 
 match_down_right(#tile{id=IdL, type=center, size={XL, YL},
@@ -576,15 +666,17 @@ match_down_right(#tile{id=IdL, type=center, size={XL, YL},
                                         right = RightL, down = DownL}},
                  #tile{id=IdR, type=center, size={XR, XL},
                        pattern = #pattern{left = LeftR, up = UpR,
-                                          right = RightR, down = DownR}}) ->
+                                          right = RightR, down = DownR}},
+                 PrimarySources) ->
     case patterns_match(DownL, RightR) of
         false -> false;
         true  -> #tile{type=center, size={XL, YL+XR},
                        pattern=#pattern{up = UpL, right = RightL++DownR,
                                         down = LeftR, left = UpR++LeftL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_down_right(_, _) -> false.
+match_down_right(_, _, _) -> false.
 
 
 match_down_up(#tile{id=IdL, type=center, size={X, YL},
@@ -592,15 +684,17 @@ match_down_up(#tile{id=IdL, type=center, size={X, YL},
                                      right = RightL, down = DownL}},
               #tile{id=IdR, type=center, size={X, YR},
                     pattern = #pattern{left = LeftR, up = UpR,
-                                       right = RightR, down = DownR}}) ->
+                                       right = RightR, down = DownR}},
+              PrimarySources) ->
     case patterns_match(DownL, UpR) of
         false -> false;
         true  -> #tile{type=center, size={X, YL+YR},
                        pattern=#pattern{up = UpL, right = RightL++RightR,
                                         down = DownR, left = LeftR++LeftL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_down_up(_, _) -> false.
+match_down_up(_, _, _) -> false.
 
 
 match_down_down(#tile{id=IdL, type=center, size={X, YL},
@@ -608,15 +702,17 @@ match_down_down(#tile{id=IdL, type=center, size={X, YL},
                                        right = RightL, down = DownL}},
                 #tile{id=IdR, type=center, size={X, YR},
                       pattern = #pattern{left = LeftR, up = UpR,
-                                         right = RightR, down = DownR}}) ->
+                                         right = RightR, down = DownR}},
+                PrimarySources) ->
     case patterns_match(DownL, DownR) of
         false -> false;
         true  -> #tile{type=center, size={X, YL+YR},
                        pattern=#pattern{up = UpL, right = RightL++LeftR,
                                         down = UpR, left = RightR++LeftL},
-                       count=1, sources=[{IdL, IdR}]}
+                       count=1, sources=[{IdL, IdR}],
+                       primary=PrimarySources}
     end;
-match_down_down(_, _) -> false.
+match_down_down(_, _, _) -> false.
 
 
 
