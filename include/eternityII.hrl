@@ -9,3 +9,12 @@
                count    :: pos_integer(),
                sources  :: list(),
                primary  :: list()}).
+-record(dataset, {main_table      :: atom(),
+                  corner_patterns :: atom(),
+                  edge_patterns   :: atom(),
+                  center_patterns :: atom(),
+                  current_type    :: atom(),
+                  current_pattern :: list(),
+                  db_pointer      :: term(),
+                  tile_size       :: {pos_integer(), pos_integer()}}).
+

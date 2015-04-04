@@ -204,6 +204,9 @@ matches(#tile{id=Id1, type=corner_slice, size={X, Y},
 matches(#tile{count=Count} = Tile, Tile, _ResultingSize, _PrimarySources)
   when Count < 2 ->
     false;
+matches(#tile{id=IdL} = _TileL, #tile{id=IdR} = _TileR, _ResultingSize,
+        _PrimarySources) when IdL > IdR ->
+    false;
 
 %%--------------------------------------------------------------------
 %% case 3a: matching a corner with an edge, making a bigger corner

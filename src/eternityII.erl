@@ -26,19 +26,23 @@ go(Size) ->
 loop([], _) ->
     done;
 loop([{{X1, Y1}, {X2, Y2}, {X, Y, ResultingSize}} | Rest], Size) ->
-    {Tiles1, Tiles2} =
-        if ((X1 == X2) andalso (Y1 == Y2)) ->
-                Tiles = get_tiles(X1, Y1, Size),
-                {Tiles, Tiles};
-           true  ->
-                {get_tiles(X1, Y1, Size),
-                 get_tiles(X2, Y2, Size)}
-        end,
-    prepare_table(?TABLE_NAME(X,Y)),
-    do_it(Tiles1, Tiles2, ?TABLE_NAME(X,Y), ResultingSize),
-    cleanup_table(?TABLE_NAME(X,Y), ?TABLE_FILENAME(X, Y, Size)),
+%%    {Tiles1, Tiles2} =
+%%        if ((X1 == X2) andalso (Y1 == Y2)) ->
+%%                Tiles = get_tiles(X1, Y1, Size),
+%%                {Tiles, Tiles};
+%%           true  ->
+%%                {get_tiles(X1, Y1, Size),
+%%                 get_tiles(X2, Y2, Size)}
+%%        end,
+    eternityIIdb:start_link({X1, Y1}, {X2, Y2}, {X, Y}),
+    do_it(ResultingSize),
+    %%do_it(Tiles1, Tiles2, ?TABLE_NAME(X,Y), ResultingSize),
+    eternityIIdb:stop(),
+%%    cleanup_table(?TABLE_NAME(X,Y), ?TABLE_FILENAME(X, Y, Size)),
     loop(Rest, Size).
 
+%%================================
+%% REMOVE
 get_first_tiles(Size) ->
     Filename = ?FILENAME(Size),
 %%    io:format("Reading from file: ~p~n", [Filename]),
@@ -55,15 +59,6 @@ get_tiles(X, Y, Size) ->
     ets:delete(Tab),
     Tiles.
 
-prepare_table(Tablename) ->
-%%    io:format("Creating table: ~p~n", [Tablename]),
-    ets:new(Tablename, [ordered_set, named_table]),
-    ets:insert(Tablename, {current_id, 0}).
-cleanup_table(Tablename, Filename) ->
-%%    io:format("Writing to file: ~p~n", [Filename]),
-    ets:tab2file(Tablename, Filename, [{extended_info, [md5sum]}]),
-%%    io:format("Deleting table: ~p~n", [Tablename]),
-    true = ets:delete(Tablename).
 
 do_it(Tiles1, Tiles2, TableName, ResultingSize) ->
     CornerPieces1 = [Corner || #tile{type=corner} = Corner <- Tiles1],
@@ -82,6 +77,19 @@ do_it(Tiles1, Tiles2, TableName, ResultingSize) ->
                            ResultingSize, TableName]),
     io:format("Time: ~s. Got ~p matches.~n",
               [format_time(Time), ets:info(TableName, size)-1]).
+%%================================
+
+do_it(ResultingSize) ->
+    {Time, ok} = timer:tc(?MODULE, match_it, [ResultingSize]),
+    io:format("Time: ~s.~n", [format_time(Time)]).
+
+match_it(ResultingSize) ->
+    %% TODO: recurse and handle return value no_data_left
+    {ok, Pattern, CornerPieces2} = eternityIIdb:get_chunk(corner),
+    {ok, EdgePieces1} = eternityIIdb:get_chunk(edge, Pattern),
+    generate_pieces2(CornerPieces2, EdgePieces1, ResultingSize),
+    garbage_collect(),
+    ok.
 
 match_it(_CornerPieces1, EdgePieces1, CenterPieces1,
          CornerPieces2, EdgePieces2, CenterPieces2,
@@ -168,6 +176,26 @@ generate_pieces([First | Rest] = PiecesA, PiecesB,
                  end,
     generate_pieces(Rest, NewPiecesB, N+1, TableName, ResultingSize).
 
+
+generate_pieces2([], [], 0, _ResultingSize) ->
+    ok;
+generate_pieces2([], _PiecesTypeB, N, ResultingSize) ->
+    receive
+        {true, Matches} ->
+%%            add_pieces_to_db(Matches, TableName),
+            eternityIIdb:add_tiles_to_db(Matches),
+            generate_pieces2([], [], N-1, ResultingSize)
+    end;
+generate_pieces2([First | Rest] = PiecesA, PiecesB,
+                 N, esultingSize) ->
+    spawn(eternityII, process_dataset,
+          [First, PiecesB, ResultingSize, self()]),
+    NewPiecesB = case PiecesB of
+                     PiecesA -> Rest;
+                     _       -> PiecesB
+                 end,
+    generate_pieces2(Rest, NewPiecesB, N+1, ResultingSize).
+
 process_dataset(Piece, List, ResultingSize, Master) ->
     Result0 = lists:map(fun (Tile) ->
                                 eternityII_lib:match(Piece, Tile,
@@ -176,39 +204,27 @@ process_dataset(Piece, List, ResultingSize, Master) ->
     Result = [Matches || {true, Matches} <- Result0],
     Master ! {true, lists:flatten(Result)}.
 
-add_pieces_to_db([], _) ->
-    ok;
-add_pieces_to_db([#tile{type=Type, pattern=Pattern0,
-                        sources=[Source0]} = Piece0 | Rest], TableName) ->
-    Pattern = eternityII_lib:sort_pattern(Pattern0),
-    Key = {Type, Pattern},
-    case ets:lookup(TableName, Key) of
+save_under_pattern(#pattern{left=P1, up=P2, right=P3, down=P4},
+                   Id, Tablename) ->
+    save_pattern_index(P1, Id, Tablename),
+    save_pattern_index(P2, Id, Tablename),
+    save_pattern_index(P3, Id, Tablename),
+    save_pattern_index(P4, Id, Tablename).
+
+save_pattern_index(undefined, _, _) ->
+    noop;
+save_pattern_index(Pattern, Id, Tablename) ->
+    case ets:lookup(Tablename, Pattern) of
         [] ->
-            NextId = ets:update_counter(TableName, current_id, 1),
-            Size = case get_size(Pattern) of
-                       old_size -> Piece0#tile.size;
-                       Size0    -> Size0
-                   end,
-            Piece = Piece0#tile{id = NextId, pattern=Pattern, size=Size},
-            ets:insert(TableName, {Key, Piece});
-        [{Key, #tile{count=Count, sources=OldSources,
-                     primary=OldPrimarySources}=Tile0}] ->
-            case lists:member(Source0, OldSources) of
-               true  -> nothing_to_do;
-               false ->
-                    NewSources = lists:sort([Source0 | OldSources]),
-                    NewPrimarySources = lists:sort(OldPrimarySources
-                                                   ++ Piece0#tile.primary),
-                    Tile = Tile0#tile{count=Count+1,
-                                      sources=NewSources,
-                                      primary=NewPrimarySources},
-                    ets:update_element(TableName, Key, {2, Tile})
-            end
-    end,
-    add_pieces_to_db(Rest, TableName).
+            ets:insert(Tablename, {Pattern, [Id]}),
+            [{patterns, Patterns}] = ets:lookup(Tablename, patterns),
+            ets:update_element(Tablename, patterns, {2, [Pattern | Patterns]});
+        [{Pattern, Ids}] ->
+            ets:update_element(Tablename, Pattern, {2, [Id | Ids]})
+    end.
 
 chunkify(List) ->
-    chunkify(List, 50).
+    chunkify(List, 100).
 chunkify(List, Max) ->
     chunkify(List, Max, 0, [], []).
 
@@ -221,10 +237,6 @@ chunkify(List, Max, Max, Result, Acc) ->
 chunkify([First | Rest], Max, N, Result, Acc) ->
     chunkify(Rest, Max, N+1, Result, [First | Acc]).
 
-get_size(#pattern{right=Right, down=Down}) when Right /= undefined
-                                                andalso Down /= undefined ->
-    {length(Down), length(Right)};
-get_size(_) -> old_size.
 
 format_time(Time) when Time < 1000000 ->
     io_lib:format("~p ms", [Time div 1000]);

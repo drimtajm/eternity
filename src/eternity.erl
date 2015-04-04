@@ -4,9 +4,9 @@
 -type pattern() :: atom() | [atom()].
 
 -record(patterns, {up      :: pattern(),
-		   down    :: pattern(),
-		   left    :: pattern(),
-		   right   :: pattern()}).
+                   down    :: pattern(),
+                   left    :: pattern(),
+                   right   :: pattern()}).
 
 -record(brick, {id             :: pos_integer(),
 		type           :: corner | edge | center,
